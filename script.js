@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let knockBuffers = [];
     let uiHoverBuffer;
     let tvStaticLoopBuffer;
+    let knockTimeoutId = null, knockingActive = false, primaryKnockBuffer = null;
 
     async function loadSound(url) {
         try {
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         knockBuffers = knockBuffers.filter(b => b); // remove nulls on failure
         uiHoverBuffer = await loadSound('ui_hover.mp3');
         tvStaticLoopBuffer = await loadSound('tv_static_loop.mp3');
+        primaryKnockBuffer = await loadSound('knock.mp3');
     }
 
     function setupAudio() {
@@ -286,11 +288,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function scheduleNextKnock() {
-        const randomInterval = Math.random() * (10000 - 3000) + 3000; // between 3 and 10 seconds
-        setTimeout(() => {
-            playKnock();
-            scheduleNextKnock(); // schedule the next one
-        }, randomInterval);
+        knockingActive = true;
+        const randomInterval = Math.random() * (10000 - 3000) + 3000;
+        knockTimeoutId = setTimeout(() => { if (!knockingActive) return; playKnock(); scheduleNextKnock(); }, randomInterval);
+    }
+
+    function stopKnocks() {
+        knockingActive = false;
+        if (knockTimeoutId) { clearTimeout(knockTimeoutId); knockTimeoutId = null; }
     }
 
     function initButtonHovers() {
@@ -369,8 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startCutscene(){
         const cs=document.getElementById('cutscene'), img=document.getElementById('cutscene-image');
         const loading=cs.querySelector('.cutscene-loading'); cs.style.display='flex'; loading.style.display='grid';
-        const res=await websim.imageGen({ prompt:"Create a detailed landscape scene reminiscent of a 1980–1990s photograph. The foreground shows a landmass with trees and several houses — one with a red roof, one with a green roof, and a few smaller houses. Behind it, there is a lake with an island in the middle, and the lake wraps around the island. In the background, dense trees lead up to a distant city skyline. The sky is bright blue with scattered clouds. Capture a nostalgic, slightly vintage photographic feel with natural lighting and soft colors.", aspect_ratio:"16:9" });
-        img.onload=()=>{ img.classList.add('reveal'); }; img.src=res.url; loading.style.display='none';
+        img.onload=()=>{ img.classList.add('reveal'); loading.style.display='none'; }; img.src='cutscene_landscape.png';
         if(backgroundAudioElement) { try{ backgroundAudioElement.pause(); }catch(e){} }
         cutsceneAudio=new Audio('Distant Transmission - Sonauto.ai.ogg'); const src=audioCtx.createMediaElementSource(cutsceneAudio);
         const g=audioCtx.createGain(); g.gain.value=0; src.connect(g).connect(audioCtx.destination);
@@ -398,7 +402,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // New Game -> start cutscene
         const newGameBtn = Array.from(document.querySelectorAll('.menu button')).find(b=>b.textContent.trim()==='New Game');
-        if(newGameBtn){ newGameBtn.addEventListener('click', async ()=>{ newGameBtn.disabled=true; await startCutscene(); }); }
+        if(newGameBtn){
+            newGameBtn.addEventListener('click', async ()=>{
+                newGameBtn.disabled=true; stopKnocks(); if(primaryKnockBuffer) playSound(primaryKnockBuffer, 1.0);
+                await startCutscene();
+            });
+        }
 
         // Adjust on window resize
         window.addEventListener('resize', () => {
