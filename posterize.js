@@ -1,16 +1,15 @@
-export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.12, opts = {}) {
+export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.12) {
   const gl = canvas.getContext('webgl');
   if (!gl) return;
-  const {
-    levelsSky = 7.0, skyEdgeMix = 0.06, skyStrength = 0.8, motionScale = 0.0012
-  } = opts;
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  let animationFrameId = null;
+
   const resize = () => {
     const w = Math.floor(innerWidth * dpr), h = Math.floor(innerHeight * dpr);
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w; canvas.height = h;
       canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-      draw();
+      // The animation loop will handle drawing.
     }
   };
 
@@ -26,43 +25,75 @@ export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.1
   uniform vec2 uTexel;
   uniform float uLevels;
   uniform float uEdgeMix;
-  uniform float uLevelsSky;
-  uniform float uSkyEdgeMix;
   uniform float uTime;
-  uniform float uSkyStrength;
-  uniform float uMotionScale;
   varying vec2 vUV;
 
   float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
   vec3 posterize(vec3 c, float lv){ return floor(c*lv)/lv; }
+  
+  // Noise functions for lava lamp effect
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
+  float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      float a = hash(i + vec2(0.0, 0.0));
+      float b = hash(i + vec2(1.0, 0.0));
+      float c = hash(i + vec2(0.0, 1.0));
+      float d = hash(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  float fbm(vec2 p) {
+      float value = 0.0;
+      float amplitude = 0.5;
+      for (int i = 0; i < 4; i++) {
+          value += amplitude * noise(p);
+          p *= 2.0;
+          amplitude *= 0.5;
+      }
+      return value;
+  }
 
   void main(){
-    float skyMask = smoothstep(0.15, 0.55, 1.0 - vUV.y);
-    vec2 uv = vUV + vec2(0.0, (sin(vUV.x*18.0 + uTime*0.5) + sin(vUV.x*7.0 - uTime*0.3)) * uMotionScale * uSkyStrength) * skyMask;
-    vec3 col = texture2D(uTex0, uv).rgb;
+    float skyMask = smoothstep(0.45, 0.0, vUV.y); // 1 at top, 0 by ~45% down
+
+    // Lava lamp displacement
+    vec2 motion = vec2(fbm(vUV * 2.5 + uTime * 0.08), fbm(vUV * 2.5 - uTime * 0.08));
+    vec2 distortedUV = vUV + (motion - 0.5) * 0.1 * skyMask; // Apply displacement based on mask. Increased from 0.05
+
+    vec3 col = texture2D(uTex0, distortedUV).rgb;
+
+    // Modulate posterization levels with fog motion in the sky
+    float dynamicLevels = uLevels + motion.x * 3.0 * skyMask;
+
     col = pow(col, vec3(1.0/2.2));
-    float lv = mix(uLevels, uLevelsSky, skyMask);
-    vec3 post = posterize(col, lv);
+    vec3 post = posterize(col, dynamicLevels); // Use dynamic levels
     post = pow(post, vec3(2.2));
 
-    // Sobel edge on gamma-corrected luminance
-    float tl=luma(texture2D(uTex0, uv+uTexel*vec2(-1.0,-1.0)).rgb);
-    float tc=luma(texture2D(uTex0, uv+uTexel*vec2( 0.0,-1.0)).rgb);
-    float tr=luma(texture2D(uTex0, uv+uTexel*vec2( 1.0,-1.0)).rgb);
-    float ml=luma(texture2D(uTex0, uv+uTexel*vec2(-1.0, 0.0)).rgb);
-    float mr=luma(texture2D(uTex0, uv+uTexel*vec2( 1.0, 0.0)).rgb);
-    float bl=luma(texture2D(uTex0, uv+uTexel*vec2(-1.0, 1.0)).rgb);
-    float bc=luma(texture2D(uTex0, uv+uTexel*vec2( 0.0, 1.0)).rgb);
-    float br=luma(texture2D(uTex0, uv+uTexel*vec2( 1.0, 1.0)).rgb);
+    // Sobel edge on gamma-corrected luminance (using original UVs for sampling neighbors for stability)
+    float tl=luma(texture2D(uTex0, vUV+uTexel*vec2(-1.0,-1.0)).rgb);
+    float tc=luma(texture2D(uTex0, vUV+uTexel*vec2( 0.0,-1.0)).rgb);
+    float tr=luma(texture2D(uTex0, vUV+uTexel*vec2( 1.0,-1.0)).rgb);
+    float ml=luma(texture2D(uTex0, vUV+uTexel*vec2(-1.0, 0.0)).rgb);
+    float mr=luma(texture2D(uTex0, vUV+uTexel*vec2( 1.0, 0.0)).rgb);
+    float bl=luma(texture2D(uTex0, vUV+uTexel*vec2(-1.0, 1.0)).rgb);
+    float bc=luma(texture2D(uTex0, vUV+uTexel*vec2( 0.0, 1.0)).rgb);
+    float br=luma(texture2D(uTex0, vUV+uTexel*vec2( 1.0, 1.0)).rgb);
 
     float gx = -tl - 2.0*ml - bl + tr + 2.0*mr + br;
     float gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
     float edge = clamp(length(vec2(gx, gy))*0.9, 0.0, 1.0);
     vec3 edgeCol = vec3(1.0 - edge); // dark lines
 
-    vec3 baseMix = mix(col, post, 0.9); // overall stronger posterize than original mix
-    float edgeMixLocal = mix(uEdgeMix, uSkyEdgeMix, skyMask);
-    vec3 finalCol = mix(baseMix, baseMix*edgeCol, edgeMixLocal);
+    vec3 postEdge = mix(post, post*edgeCol, uEdgeMix);
+    
+    // Weaken the posterize/edge effect in the land area, similar to before
+    float posterizeStrengthMask = smoothstep(0.40, 0.80, vUV.y); // 0 in sky, 1 in land
+    vec3 orig = texture2D(uTex0, distortedUV).rgb;
+    vec3 finalCol = mix(postEdge, orig, posterizeStrengthMask * 0.5); // blend back original color in land
+
     gl_FragColor = vec4(finalCol, 1.0);
  }`;
 
@@ -101,30 +132,34 @@ export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.1
   const uTexel = gl.getUniformLocation(prog, 'uTexel');
   const uLevels = gl.getUniformLocation(prog, 'uLevels');
   const uEdgeMix = gl.getUniformLocation(prog, 'uEdgeMix');
-  const uLevelsSky = gl.getUniformLocation(prog, 'uLevelsSky');
-  const uSkyEdgeMix = gl.getUniformLocation(prog, 'uSkyEdgeMix');
   const uTime = gl.getUniformLocation(prog, 'uTime');
-  const uSkyStrength = gl.getUniformLocation(prog, 'uSkyStrength');
-  const uMotionScale = gl.getUniformLocation(prog, 'uMotionScale');
+  const startTime = performance.now();
 
-  let lastTime = 0;
   function draw() {
+    const time = (performance.now() - startTime) / 1000.0;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(prog);
     gl.uniform2f(uTexel, 1.0 / image.naturalWidth, 1.0 / image.naturalHeight);
     gl.uniform1f(uLevels, levels);
     gl.uniform1f(uEdgeMix, edgeMix);
-    gl.uniform1f(uLevelsSky, levelsSky);
-    gl.uniform1f(uSkyEdgeMix, skyEdgeMix);
-    gl.uniform1f(uTime, lastTime);
-    gl.uniform1f(uSkyStrength, skyStrength);
-    gl.uniform1f(uMotionScale, motionScale);
+    gl.uniform1f(uTime, time);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
+  function animate() {
+    draw();
+    animationFrameId = requestAnimationFrame(animate);
+  }
+
   resize();
-  const start = performance.now();
-  const loop = (now)=>{ lastTime = (now - start)/1000; draw(); requestAnimationFrame(loop); };
-  requestAnimationFrame(loop);
+  animate();
   window.addEventListener('resize', resize, { passive: true });
+
+  // Return a cleanup function
+  return () => {
+      if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+      }
+      // Consider cleaning up other resources if this component can be destroyed
+  };
 }
