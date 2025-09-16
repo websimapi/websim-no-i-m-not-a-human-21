@@ -548,6 +548,50 @@ h1 .not-word.pulse-red { animation: notPulse 1.2s ease; }
     mix-blend-mode: multiply;
 }
 
+/* Retro sky overlay: banding + subtle dithering + CRT-ish lines, only top portion */
+#cutscene .retro-sky {
+    position: absolute; inset: 0 0 55% 0; /* top ~45% coverage */
+    pointer-events: none; z-index: 2; opacity: 0; transition: opacity 9s ease-in-out;
+    mix-blend-mode: hard-light;
+    background:
+      /* banding blocks (hard stops) */
+      linear-gradient(to bottom,
+        rgba(160,195,235,0.25) 0%,
+        rgba(160,195,235,0.25) 6%,
+        rgba(130,170,215,0.22) 6%,
+        rgba(130,170,215,0.22) 12%,
+        rgba(110,150,200,0.20) 12%,
+        rgba(110,150,200,0.20) 18%,
+        rgba(95,135,185,0.18) 18%,
+        rgba(95,135,185,0.18) 24%,
+        rgba(80,120,170,0.16) 24%,
+        rgba(80,120,170,0.16) 30%,
+        rgba(65,105,155,0.14) 30%,
+        rgba(65,105,155,0.14) 36%,
+        rgba(50,90,140,0.12) 36%,
+        rgba(50,90,140,0.12) 42%,
+        rgba(40,80,130,0.10) 42%,
+        rgba(40,80,130,0.10) 48%,
+        rgba(32,70,120,0.08) 48%,
+        rgba(32,70,120,0.00) 100%
+      ),
+      /* subtle vertical dithering stripes */
+      repeating-linear-gradient(to right,
+        rgba(255,255,255,0.04) 0 2px,
+        rgba(0,0,0,0.00) 2px 4px
+      ),
+      /* faint scanline texture */
+      repeating-linear-gradient(to bottom,
+        rgba(0,0,0,0.12) 0 1px,
+        rgba(0,0,0,0.00) 1px 3px
+      );
+    filter: contrast(1.05) saturate(1.05) brightness(1.02);
+    image-rendering: pixelated;
+  }
+
+/* Reveal sky overlay when image fades in */
+#cutscene img.reveal ~ .retro-sky { opacity: 1; }
+
 @media (max-width: 768px) and (orientation: portrait) {
     #app {
         grid-template-columns: 1fr 2.5fr 1fr; /* Give center more space on portrait */
