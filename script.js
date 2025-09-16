@@ -1,4 +1,5 @@
 import { FogFX } from './fog.js';
+import { applyPosterizeToImage } from './posterize.js';
 document.addEventListener('DOMContentLoaded', () => {
     console.log("Script loaded and running.");
     const AUDIO_DURATION = 95, FADE = 15, FADE_OUT_START = 80;
@@ -373,8 +374,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function startCutscene(){
         const cs=document.getElementById('cutscene'), img=document.getElementById('cutscene-image');
+        const canvas=document.getElementById('cutscene-canvas');
         const loading=cs.querySelector('.cutscene-loading'); cs.style.display='flex'; loading.style.display='grid';
-        img.onload=()=>{ img.classList.add('reveal'); loading.style.display='none'; }; img.src='cutscene_landscape.png';
+        img.onload=()=>{ loading.style.display='none'; applyPosterizeToImage(canvas, img, 5.0, 0.12); canvas.classList.add('reveal'); img.style.display='none'; };
+        img.src='cutscene_landscape.png';
         if(backgroundAudioElement) { try{ backgroundAudioElement.pause(); }catch(e){} }
         cutsceneAudio=new Audio('Distant Transmission - Sonauto.ai.ogg'); const src=audioCtx.createMediaElementSource(cutsceneAudio);
         const g=audioCtx.createGain(); g.gain.value=0; src.connect(g).connect(audioCtx.destination);
