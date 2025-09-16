@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cs=document.getElementById('cutscene'), img=document.getElementById('cutscene-image');
         const canvas=document.getElementById('cutscene-canvas');
         const loading=cs.querySelector('.cutscene-loading'); cs.style.display='flex'; loading.style.display='grid';
-        img.onload=()=>{ loading.style.display='none'; applyPosterizeToImage(canvas, img, 5.0, 0.12); canvas.classList.add('reveal'); img.style.display='none'; };
+        img.onload=()=>{ loading.style.display='none'; applyPosterizeToImage(canvas, img, 5.0, 0.12, { levelsSky: 7.0, skyEdgeMix: 0.05, skyStrength: 0.9, motionScale: 0.0012 }); canvas.classList.add('reveal'); img.style.display='none'; };
         img.src='cutscene_landscape.png';
         if(backgroundAudioElement) { try{ backgroundAudioElement.pause(); }catch(e){} }
         cutsceneAudio=new Audio('Distant Transmission - Sonauto.ai.ogg'); const src=audioCtx.createMediaElementSource(cutsceneAudio);
