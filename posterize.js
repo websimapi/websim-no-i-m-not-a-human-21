@@ -23,6 +23,7 @@ export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.1
   uniform vec2 uTexel;
   uniform float uLevels;
   uniform float uEdgeMix;
+  uniform float uTime;
   varying vec2 vUV;
 
   float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -49,10 +50,19 @@ export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.1
     float edge = clamp(length(vec2(gx, gy))*0.9, 0.0, 1.0);
     vec3 edgeCol = vec3(1.0 - edge); // dark lines
 
-    float skyFactor = 1.0 - smoothstep(0.0, 0.65, vUV.y); // 1 at top (sky), 0 at bottom
-    float mixAmt = mix(0.65, 0.95, skyFactor);            // stronger posterize in sky
+    float skyFactor = 1.0 - smoothstep(0.0, 0.62, vUV.y); // 1 at top (sky), 0 at bottom
+    vec2 wobble = 0.002 * skyFactor * vec2(
+        sin(uTime * 0.15 + vUV.y * 12.0),
+        cos(uTime * 0.13 + vUV.x * 10.0)
+    );
+    vec2 tUV = vUV + wobble;
+    col = texture2D(uTex0, tUV).rgb;
+    col = pow(col, vec3(1.0/2.2));
+    post = posterize(col, uLevels);
+    post = pow(post, vec3(2.2));
+    float mixAmt = mix(0.70, 0.90, skyFactor);            // moderate in sky
     vec3 baseMix = mix(col, post, mixAmt);
-    float edgeScale = mix(1.0, 0.35, skyFactor);          // softer edges in sky
+    float edgeScale = mix(1.0, 0.60, skyFactor);          // middle-ground edges in sky
     vec3 finalCol = mix(baseMix, baseMix*edgeCol, uEdgeMix * edgeScale);
     gl_FragColor = vec4(finalCol, 1.0);
  }`;
@@ -92,17 +102,21 @@ export function applyPosterizeToImage(canvas, image, levels = 5.0, edgeMix = 0.1
   const uTexel = gl.getUniformLocation(prog, 'uTexel');
   const uLevels = gl.getUniformLocation(prog, 'uLevels');
   const uEdgeMix = gl.getUniformLocation(prog, 'uEdgeMix');
+  const uTime = gl.getUniformLocation(prog, 'uTime');
 
-  function draw() {
+  function draw(t = 0) {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.useProgram(prog);
     gl.uniform2f(uTexel, 1.0 / image.naturalWidth, 1.0 / image.naturalHeight);
     gl.uniform1f(uLevels, levels);
     gl.uniform1f(uEdgeMix, edgeMix);
+    gl.uniform1f(uTime, t * 0.001);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
-  resize(); 
-  draw(); 
+  resize();
+  let raf;
+  const animate = (now) => { draw(now || 0); raf = requestAnimationFrame(animate); };
+  requestAnimationFrame(animate);
   window.addEventListener('resize', resize, { passive: true });
 }
