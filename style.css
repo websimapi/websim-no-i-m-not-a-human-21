@@ -9,7 +9,7 @@ body {
     color: #ccc;
     background-color: #020502;
     overflow: hidden;
-    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -66,7 +66,7 @@ body {
 
 #app {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     display: grid;
     grid-template-columns: 1fr 2fr 1fr;
     grid-template-rows: 1fr;
@@ -515,11 +515,12 @@ h1 .not-word.pulse-red { animation: notPulse 1.2s ease; }
     z-index: 10002;
     align-items: center;
     justify-content: center;
+    height: 100dvh;
 }
 
 #cutscene img {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     object-fit: cover;
     opacity: 0;
     transition: opacity 4s ease-in-out;
