@@ -522,7 +522,7 @@ h1 .not-word.pulse-red { animation: notPulse 1.2s ease; }
     height: 100vh;
     object-fit: cover;
     opacity: 0;
-    transition: opacity 2s ease;
+    transition: opacity 4s ease-in-out;
 }
 
 #cutscene img.reveal {
